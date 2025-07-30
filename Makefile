@@ -4,7 +4,7 @@ src = main.asm
 
 inc = macros.inc
 
-out = app
+out = relayouter
 
 .PHONY: all build run kill clean
 
