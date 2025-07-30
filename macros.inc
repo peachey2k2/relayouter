@@ -363,16 +363,18 @@ find_CRLF_CRLF_in_str:
   ret ; ZF = 1
 
 parse_request:
+  ; request type
   lea        r9, [client.request]
   find_char_in_str ' ', r9, [client.request_len]
-  jnz        .err
+  jnz        .400
   mov        rax, "GET "
   cmp        dword [r9], eax
-  jne        .err ; request didnt match
+  jne        .501 ; nah
 
+  ; path
   mov        r9, rdi
   find_char_in_str ' ', r9, [client.request_len]
-  jnz        .err
+  jnz        .400
   push       r9 ; path
   sub        r9, rdi
   ; neg        r9
@@ -380,18 +382,16 @@ parse_request:
   not        r9 ; same as neg + dec
   push       r9 ; path length
 
+  ; http version
   mov        r9, rdi
   find_char_in_str ' ', r9, [client.request_len]
-  jnz        .err
-  ; cmp        dword [r9], 0x50545448 ; "HTTP"
+  jnz        .400_pop
   mov        rax, "HTTP"
   cmp        dword [r9], eax
-  jne        .err ; ????
-  mov        rax, "HTTP"
-  ; cmp        dword [r9 + 3], 0x2e312f50 ; "P/1."
+  jne        .400_pop ; ????
   mov        rax, "P/1."
   cmp        dword [r9 + 3], eax
-  jne        .err ; http version not supported
+  jne        .505_pop ; http version not supported
 
   ; decode the url
   mov        r9, "public"
@@ -417,7 +417,7 @@ parse_request:
 
   add        rcx, 2
   cmp        rcx, r9
-  jge        .err ; invalid url
+  jge        .400 ; invalid url
 
   ; %xx blocks to ascii
   mov        bx, word [r10 + rcx - 1] ; keep in mind it's still in LE
@@ -460,7 +460,6 @@ parse_request:
   ; yes we overdo it on purpose btw, makes checking easier
 
   sub        r8, [buf]
-  ;neg        r8
   find_char_in_str_reverse '.', [buf], r8d
   mov        r8, rdi
   add        r8, 2
@@ -497,17 +496,23 @@ parse_request:
 
   ret
 
+.501:
+  httperr    "501 Not Implemented"
+.505_pop:
+  add        rsp, 16
+  httperr    "505 HTTP Version Not Supported"
+.400_pop:
+  add        rsp, 16
+.400:
+  httperr    "400 Bad Request"
+  ret
 .404_close:
   ;; int close(int fd);
   Syscall    SYS_close, r15
-.404:
   add        rsp, 8
+.404:
   httperr    "404 Not Found"
   ret
-.err:
-; TODO: actually implement the proper error responses
-  err_raw    "http error"
-  exit 1
 
 
 ; rax will hold the extension with null bytes in the end
