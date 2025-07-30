@@ -1,0 +1,38 @@
+@font-face {
+  font-family: 'Miracode';
+  src: url('fonts/Miracode.ttf') format('ttf');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  margin: 0;
+  font-family: 'Miracode', monospace;
+  font-variant-ligatures: none;
+  font-size: 18px;
+  color: white;
+  background: black;
+}
+
+.container {
+  max-width: 700px;
+  margin: 60px auto;
+  padding: 20px;
+  background: black;
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 30px;
+  color: white;
+}
+
+canvas {
+  max-width: 100%;
+  background: black;
+}
+
+#performanceChart {
+  padding-top: 20px;
+}
