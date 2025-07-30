@@ -224,30 +224,54 @@ drop_client_obj:
 
   ret
 
-macro httperr type* {
-  local .text, LENGTH, .end
-
-  assert     LENGTH < HDR_SIZE
-
+__httperr_inner:
   mov        [client.state], CLIENT_SEND_ERR
 
-  mov        rcx, LENGTH
-  mov        rsi, .text
   lea        rdi, [client.header]
+
+  mov        rcx, .text2 - .text1
+  mov        rsi, .text1
   rep        movsb
 
-  mov        [client.header_len], LENGTH
+  pop        rbx
+  pop        rcx
+  pop        rsi
+  push       rbx
+  rep        movsb
+
+  mov        rcx, .end - .text2
+  mov        rsi, .text2
+  rep        movsb
+
+  lea        rsi, [client.header]
+  sub        rdi, rsi
+  mov        [client.header_len], edi
+
+  ret
+
+.text1:
+  db "HTTP/1.1 "
+.text2:
+  db CR, LF
+  db "Content-Length: 0", CR, LF
+  db "Content-Type: text/plain", CR, LF
+  db "Connection: close", CR, LF
+  db CR, LF
+.end:
+
+macro httperr type* {
+  local .type, .end, LENGTH
+
+  push       qword .type
+  push       qword LENGTH
+  call       __httperr_inner
 
   jmp        .end
 
-  .text:
-    db "HTTP/1.1 ", type, CR, LF
-    db "Content-Length: 0", CR, LF
-    db "Content-Type: text/plain", CR, LF
-    db "Connection: close", CR, LF
-    db CR, LF
-  LENGTH = $ - .text
+  .type:
+    db type
   .end:
+  LENGTH = .end - .type
 }
 
 setup_http_header:
@@ -509,8 +533,8 @@ parse_request:
 .404_close:
   ;; int close(int fd);
   Syscall    SYS_close, r15
-  add        rsp, 8
 .404:
+  add        rsp, 8
   httperr    "404 Not Found"
   ret
 
