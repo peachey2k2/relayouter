@@ -50,7 +50,7 @@ window.addEventListener('load', () => {
             color: '#ffffff',
             font: {
               family: "'Miracode'",
-              size: 18,
+              size: 16,
             },
           }
         },
@@ -63,7 +63,7 @@ window.addEventListener('load', () => {
             color: '#ffffff',
             font: {
               family: "'Miracode'",
-              size: 18,
+              size: 16,
             },
           }
         }
