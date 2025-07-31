@@ -1,9 +1,9 @@
 format ELF64 executable
 
 segment readable
+
 server_addr:       ; 16 bytes
   dw 2          ; family: AF_INET
-  ; dw 0x5000     ; port (htons(80))
   dw 0x901F     ; port (htons(8080))
   dd 0x0100007F ; addr: 127.0.0.1
   dq 0          ; padding
@@ -18,125 +18,97 @@ SIGSET_LEN = 8
 
 sa_mask dq 0
 
-one     dd 1
-zero    dd 0
-
-sleep_duration:
-  dq 1 ; tv_sec
-  dq 0 ; tv_nsec
+one dd 1
 
 NULL = 0
 
 block_sigset dq 0x4002 ; SIGTERM | SIGINT
 
-  MAX_EVENTS = 2048
-  INIT_POOL_SIZE = 4096
-  INIT_CLIENT_COUNT = 4000
+MAX_EVENTS = 2048
+INIT_POOL_SIZE = 4096
+INIT_CLIENT_COUNT = 4000
 
-  struc Context {
-    .master_pid    rd 1
-    .is_running    rd 1
-    .pool_head     rq 1
-    .pool_tail     rq 1
-    .pool_len      rq 1
-  }
+struc Context {
+  .master_pid    rd 1
+  .is_running    rd 1
+  .pool_head     rq 1
+  .pool_tail     rq 1
+  .pool_len      rq 1
+}
 
-  virtual at 0
-    temp_cx Context
-    Context.size = $ - temp_cx
-    ; Context.master_pid    = temp_cx.master_pid
-    ; Context.is_running    = temp_cx.is_running
-    ; Context.pool_head     = temp_cx.pool_head
-    ; Context.pool_tail     = temp_cx.pool_tail
-  end virtual
+virtual at 0
+  temp_cx Context
+  Context.size = $ - temp_cx
+end virtual
 
-  virtual at r11
-    context Context
-  end virtual
+virtual at r11
+  context Context
+end virtual
 
-  CONTEXT_SIZE = 64 ; overallocate to keep 64 alignment i guess?
-  assert Context.size <= CONTEXT_SIZE
+CONTEXT_SIZE = 64 ; overallocate to keep 64 alignment i guess?
+assert Context.size <= CONTEXT_SIZE
 
-  struc ClientEvent {
-    .fd            rq 1
-    .type          dq EVENT_CLIENT
-    .state         rd 1
-    ; 20
+struc ClientEvent {
+  .fd            rq 1
+  .type          dq EVENT_CLIENT
+  .state         rd 1
+  ; 20
 
-    .request       rb REQ_SIZE
-    .request_len   rd 1
-    ; REQ_SIZE + 4
+  .request       rb REQ_SIZE
+  .request_len   rd 1
+  ; REQ_SIZE + 4
 
-    .header        rb HDR_SIZE
-    .header_len    rd 1
-    .header_pos    rd 1
-    ; HDR_SIZE + 8
+  .header        rb HDR_SIZE
+  .header_len    rd 1
+  .header_pos    rd 1
+  ; HDR_SIZE + 8
 
-    .file_fd       rd 1
-    .file_pos      rq 1
-    .file_size     rq 1
-    .file_type     rq 1
-    ; 28
-  }
-  ; total: 60 + REQ_SIZE + HDR_SIZE
-  REQ_SIZE = 3500
-  HDR_SIZE = 536
-  ; with this, each instance will be 4KiB = 2^12 bytes
+  .file_fd       rd 1
+  .file_pos      rq 1
+  .file_size     rq 1
+  .file_type     rq 1
+  ; 28
+}
+; total: 60 + REQ_SIZE + HDR_SIZE
+REQ_SIZE = 3500
+HDR_SIZE = 536
+; with this, each instance will be 4KiB = 2^12 bytes
 
-  CLIENT_SIZE = 4096
+CLIENT_SIZE = 4096
 
-  virtual at 0
-    temp_ce ClientEvent
-    ClientEvent.size = $ - temp_ce
+virtual at 0
+  temp_ce ClientEvent
+  ClientEvent.size = $ - temp_ce
+end virtual
 
-    ClientEvent.fd            = temp_ce.fd
-    ClientEvent.type          = temp_ce.type
-    ClientEvent.state         = temp_ce.state
+virtual at r14
+  client ClientEvent
+end virtual
 
-    ClientEvent.request       = temp_ce.request
-    ClientEvent.request_len   = temp_ce.request_len
+assert ClientEvent.size = CLIENT_SIZE
 
-    ClientEvent.header        = temp_ce.header
-    ClientEvent.header_len    = temp_ce.header_len
-    ClientEvent.header_pos    = temp_ce.header_pos
+LOC_CONTEXT      = 0
+LOC_CLIENT_POOL  = LOC_CONTEXT      + CONTEXT_SIZE
+LOC_CLIENTS      = LOC_CLIENT_POOL  + INIT_POOL_SIZE * 4           ; word[INIT_POOL_SIZE]
+LOC_ARENA_END    = LOC_CLIENTS      + INIT_POOL_SIZE * CLIENT_SIZE ; client_obj[INIT_POOL_SIZE]
 
-    ClientEvent.file_fd       = temp_ce.file_fd
-    ClientEvent.file_pos      = temp_ce.file_pos
-    ClientEvent.file_size     = temp_ce.file_size
-    ClientEvent.file_type     = temp_ce.file_type
-  end virtual
+INIT_ARENA_SIZE = LOC_ARENA_END
 
-  virtual at r14
-    client ClientEvent
-  end virtual
-
-  assert ClientEvent.size = CLIENT_SIZE
-  
-  LOC_CONTEXT      = 0
-  LOC_CLIENT_POOL  = LOC_CONTEXT      + CONTEXT_SIZE
-  LOC_CLIENTS      = LOC_CLIENT_POOL  + INIT_POOL_SIZE * 4           ; word[INIT_POOL_SIZE]
-  LOC_ARENA_END    = LOC_CLIENTS      + INIT_POOL_SIZE * CLIENT_SIZE ; client_obj[INIT_POOL_SIZE]
-
-  INIT_ARENA_SIZE = LOC_ARENA_END
-
-  ; basically we store the indexes of each client object in `LOC_CLIENTS`
-  ; and use it as a stack (so we don't have fragmentation issues)
-
+; basically we store the indexes of each client object in a
+; ring buffer at `LOC_CLIENTS` and use it as a stack so we
+; don't have fragmentation issues nor alloc/dealloc overhead
 
 
 segment readable writable
-; pid_main dd 0
-; pid_cores dq 0 ;ptr
-cpu_count dd 0
 
-; is_running dq 1
-
+; we use this buffer for like a billion things.
+; it's gonna be allocated in the stack.
 buf dq 0
 BUF_SIZE = 1024
 
-cpu_set_cell_cnt = 16
-cpu_set dq cpu_set_cell_cnt dup 0
-cpu_set_size = cpu_set_cell_cnt*8
+CPU_SET_CELL_CNT = 16
+; cpu_set dq CPU_SET_CELL_CNT dup 0
+CPU_SET_SIZE = CPU_SET_CELL_CNT*8
 
 arena dq 0
 arena_size dq 0
@@ -145,7 +117,6 @@ arena_size dq 0
 events dq 0
 client_pool dq 0
 clients dq 0
-
 
 ev:
   ev_event dd 0
@@ -172,19 +143,6 @@ EVENT_SIGNAL = 2
 ev_data_server Event EVENT_SERVER
 ; ev_data_client Event EVENT_CLIENT ; we use an extended struc for client
 ev_data_signal Event EVENT_SIGNAL
-
-; ev_data_server:
-;   sockfd dq 0
-;   EVENT_SERVER dq 0
-
-; ; ev_data_client:
-; ;   clientfd dq 0
-; ;   EVENT_CLIENT dq 1
-
-; ev_data_signal:
-;   signalfd dq 0
-;   EVENT_SIGNAL dq 2
-
 
 
 segment readable executable
@@ -229,12 +187,13 @@ start:
   mov        dword [r14 + 4*r15], r15d
   jnz        @b
 
+  ; after the `setrlimit` call, we'll have 4096 bytes of stack for everything else
   STACK_LEFTOVER = 4096
   STACK_SIZE = (MAX_EVENTS*16) + BUF_SIZE + STACK_LEFTOVER
 
   ; increase the stack size
   ;; int getrlimit(int resource, struct rlimit *rlim);
-  lea        r15, [rsp - 64]
+  lea        r15, [rsp - 64] ; cheeky deep stack access (very sussy)
   Syscall    SYS_getrlimit, RLIMIT_STACK, r15
   cmp        rax, 0
   jge        @f
@@ -263,26 +222,26 @@ start:
 
   ; get the cpu thread count
   ;; int sched_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask);
-  Syscall    SYS_sched_getaffinity, qword [context.master_pid], cpu_set_size, cpu_set
+  mov        r15, rsp ; still holds `buf`
+  Syscall    SYS_sched_getaffinity, qword [context.master_pid], CPU_SET_SIZE, r15
   cmp        rax, 0
   jge        @f
   error      "couldn't retrieve cpu affinity mask"
 @@:
-
   xor        r9,  r9
   xor        r12, r12
 @@:
-  popcnt     r10, [cpu_set + 8*r9]
+  popcnt     r10, [r15 + 8*r9]
   add        r12, r10
   inc        r9
-  cmp        r9, cpu_set_cell_cnt
+  cmp        r9, CPU_SET_CELL_CNT
   jne        @b
 
   print      "Detected "
   print_int  r12
   print      " CPUs.", 10
 
-  mov        [cpu_count], r12d
+  push       r12
 
   ; create a socket
   ;; int socket(int domain, int type, int protocol);
@@ -293,23 +252,6 @@ start:
   jge     @f
   error   "couldn't create socket"
 @@:
-
-;   ; enable non blocing flag
-;   ;; int fcntl(int fd, int op, ... /* arg */ );
-;   Syscall SYS_fcntl, [ev_data_server.fd], F_GETFL
-;   cmp     rax, 0
-;   jge     @f
-;   error   "couldn't get fd flags"
-; @@:
-
-;   mov     rdx, rax ; arg 3
-;   xor     rdx, O_NONBLOCK
-
-;   Syscall SYS_fcntl, [ev_data_server.fd], F_SETFL ; ,rdx
-;   cmp     rax, 0
-;   jge     @f
-;   error   "couldn't set fd flags"
-; @@:
 
   ;; int setsockopt(int sockfd, int level, int optname, const void optval[.optlen], socklen_t optlen);
   Syscall SYS_setsockopt, [ev_data_server.fd], SOL_SOCKET, SO_REUSEADDR, one, 4
@@ -344,16 +286,17 @@ start:
   Syscall SYS_rt_sigaction, SIGHUP,  sigaction, NULL, SIGSET_LEN
 @@:
 
+  mov     rcx, CPU_SET_CELL_CNT
+  pop     rbx ; cpu count
   ; clear the set so we have it empty for the children
-  mov     rcx, cpu_set_cell_cnt
 @@:
   dec     rcx
-  mov     qword [cpu_set + 8*rcx], 0
+  mov     qword [r15 + 8*rcx], 0
   jnz     @b
 
 
   ; spawn the worker processes
-  mov     r15, 0
+  mov     r14, 0
 .worker_init_loop:
 
   ;; pid_t fork(void);
@@ -366,10 +309,10 @@ start:
   jnz     .spawn_loop_cont
 
   ; set up the right cpu thread
-  bts     [cpu_set], r15
+  bts     [r15], r14
   mov     r11, [arena]
   ;; int sched_setaffinity(pid_t pid, size_t cpusetsize, const cpu_set_t *mask);
-  Syscall SYS_sched_setaffinity, qword [context.master_pid], cpu_set_size, cpu_set
+  Syscall SYS_sched_setaffinity, qword [context.master_pid], CPU_SET_SIZE, r15
   cmp     rax, 0
   jge     @f
   error   "couldn't set cpu affinity mask"
@@ -427,8 +370,8 @@ start:
 
 .spawn_loop_cont:
 
-  inc     r15
-  cmp     r15d, [cpu_count]
+  inc     r14
+  cmp     r14, rbx
   jl      .worker_init_loop
   jmp     .master_loop
 @@:
@@ -437,10 +380,12 @@ start:
 
 
 .master_loop:
-
+  mov     r15, [buf]
+  mov     qword [r15], 1      ; tv_sec
+  mov     qword [r15 + 8], 0  ; tv_nsec
 @@:
   ;; int nanosleep(const struct timespec *duration, struct timespec *_Nullable rem);
-  Syscall SYS_nanosleep, sleep_duration, NULL ; 1 sec
+  Syscall SYS_nanosleep, r15, NULL ; 1 sec
 
   mov     r11, [arena]
   cmp     [context.is_running], 0
@@ -531,6 +476,16 @@ start:
   error   "failed to set `TCP_NODELAY` on a socket"
 @@:
 
+  ; fastopen needs to be enabled in the kernel for this
+  ; `sudo sysctl -w net.ipv4.tcp_fastopen=3`
+  ; TODO: add this as a config option
+;   mov     dword [r15], 16 ; maximum length of pending SYNs
+;   Syscall SYS_setsockopt, r14, IPPROTO_TCP, TCP_FASTOPEN, r15, 4
+;   cmp     rax, 0
+;   jge     @f
+;   error   "failed to set `TCP_FASTOPEN` on a socket"
+; @@:
+
   ; get a new object and fill it out
   call    acquire_client_obj
 
@@ -540,16 +495,17 @@ start:
   rep     stosq ; we can probably do better than swar
 
   pop     rax
-  mov     [r15 + ClientEvent.fd], rax
-  mov     qword [r15 + ClientEvent.type], EVENT_CLIENT
-  mov     qword [r15 + ClientEvent.state], CLIENT_RECV
-  mov     dword [r15 + ClientEvent.file_fd], -1
+  mov     r14, r15
+  mov     [client.fd], rax
+  mov     qword [client.type], EVENT_CLIENT
+  mov     qword [client.state], CLIENT_RECV
+  mov     dword [client.file_fd], -1
 
   ; add it to epoll
   mov     qword [ev_event], EPOLLIN
-  mov     qword [ev_data], r15
+  mov     qword [ev_data], r14
   ;; int epoll_ctl(int epfd, int op, int fd, struct epoll_event *_Nullable event);
-  Syscall SYS_epoll_ctl, [epollfd], EPOLL_CTL_ADD, [r15 + ClientEvent.fd], ev
+  Syscall SYS_epoll_ctl, [epollfd], EPOLL_CTL_ADD, [client.fd], ev
   cmp     rax, 0
   jge     @f
   error   "failed to connect epoll to signal socket"
