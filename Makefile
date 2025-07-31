@@ -2,7 +2,10 @@ fasm = fasm
 
 src = main.asm
 
-inc = macros.inc
+inc = \
+	macros.inc \
+	glibc_consts.inc \
+	header.inc
 
 out = relayouter
 
@@ -15,6 +18,7 @@ all:
 build: $(src) $(inc) Makefile
 	$(info --- build ---)
 	$(fasm) $(src) ./$(out)
+	chmod +x ./$(out)
 
 run: build
 	$(info --- run ---)
