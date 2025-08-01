@@ -324,11 +324,6 @@ start:
   Syscall SYS_accept4, r14, NULL, NULL, SOCK_NONBLOCK
   cmp     rax, 0
   jge     @f
-
-  ; this just means another thread already handled this
-  cmp     rax, -EAGAIN ; EWOULDBLOCK also aliases to EAGAIN on linux
-  je      .switch_end
-
   error   20, "failed to accept connection"
 @@:
 
@@ -354,7 +349,6 @@ start:
   ; get a new object and fill it out
   call    acquire_client_obj
 
-  mov     rdi, r15
   xor     rax, rax
   mov     rcx, 512 ; 4096/8
   rep     stosq ; we can probably do better than swar
@@ -532,8 +526,6 @@ start:
 ; if we poll a signal, we exit the thread without even consuming it
 ; so other processes can do the same aswell
 .signal_event:
-  pop     r14
-  ; mov     [is_running], 0
   jmp     .worker_cleanup
   
 
