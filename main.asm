@@ -449,9 +449,9 @@ start:
   mov     eax, [client.header_pos]
   add     rsi, rax ; arg 2
   mov     edx, [client.header_len] ; arg 3
-  mov     r10, 0 ; arg 4
-  mov     r8, NULL ; arg 5
-  mov     r9, 0 ; arg 6
+  xor     r10, r10 ; arg 4
+  xor     r8,  r8 ; arg 5
+  xor     r9,  r9 ; arg 6
   Syscall SYS_sendto, [client.fd]
   cmp     rax, 0
   jg      @f ; 0 also will lead to a close

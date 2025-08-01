@@ -149,7 +149,7 @@ free:
 acquire_client_obj:
   push       r14
 
-  ; TODO: this check may give false negatives since it isn't atomic
+  ; NOTE: this check may give false negatives since it isn't atomic
   mov        r11, [arena]
   mov        r14, [context.pool_tail]
   cmp        [context.pool_head], r14
@@ -384,18 +384,16 @@ parse_request:
   mov        r9, rdi
   find_char_in_str ' ', r9, [client.request_len]
   jnz        .400_pop
-  mov        rax, "HTTP"
-  cmp        dword [r9], eax
+  cmp        dword [r9], "HTTP"
   jne        .400_pop ; ????
-  mov        rax, "P/1."
-  cmp        dword [r9 + 3], eax
+  cmp        dword [r9 + 3], "P/1."
   jne        .505_pop ; http version not supported
 
   ; decode the url
   mov        r9, "public"
   mov        r8, [buf]
   mov        qword [r8], r9
-  ;lea        r8, [buf+6] ; dest
+  ; lea        r8, [buf+6] ; dest
   add        r8, 6
   pop        r9 ; length
   pop        r10 ; raw path
@@ -428,12 +426,12 @@ parse_request:
   setc       al
   mov        rdx, 39
   mul        rdx ; rax * 39 -> rdx:rax
-  sub        rbx, rbx
+  sub        rbx, rax
   and        rbx, 0000111100001111b
-  mov        rax, rax
-  shr        rax, 4
-  or         rbx, rbx
-  ror        bl, 4 ; fix the order
+  ;mov        rax, rax
+  shl        bh, 4
+  ;or         rbx, rbx
+  rol        bx, 4 ; fix the order
   jmp        .loop
 
 .no_hex:
