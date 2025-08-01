@@ -526,8 +526,6 @@ start:
 ; if we poll a signal, we exit the thread without even consuming it
 ; so other processes can do the same aswell
 .signal_event:
-  pop     r14
-  ; mov     [is_running], 0
   jmp     .worker_cleanup
   
 
