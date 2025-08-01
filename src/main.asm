@@ -349,7 +349,6 @@ start:
   ; get a new object and fill it out
   call    acquire_client_obj
 
-  mov     rdi, r15
   xor     rax, rax
   mov     rcx, 512 ; 4096/8
   rep     stosq ; we can probably do better than swar
