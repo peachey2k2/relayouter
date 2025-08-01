@@ -425,20 +425,14 @@ parse_request:
   jge        .400 ; invalid url
 
   ; %xx blocks to ascii
-  mov        bx, word [r10 + rcx - 1] ; keep in mind it's still in LE
-  or         rbx, 0010000000100000b
-  bt         rbx, 6+8
-  ; setc       al
-  ; shl        rax, 8
-  setc       ah
-  bt         rbx, 6
-  setc       al
-  mov        rdx, 39
-  mul        rdx ; rax * 39 -> rdx:rax
-  sub        rbx, rax
-  and        rbx, 0000111100001111b
-  shl        bh, 4
-  rol        bx, 4 ; fix the order
+  mov        bl, byte [r10 + rcx - 2]
+  mov        bh, byte [r10 + rcx - 1]
+  sub        bl, '0'
+  sub        bh, '0'
+  and        bl, 0xF
+  and        bh, 0xF
+  shl        bl, 4
+  or         bl, bh
   jmp        .loop
 
 .no_hex:
