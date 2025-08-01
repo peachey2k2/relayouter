@@ -399,9 +399,8 @@ parse_request:
   jne        .505_pop ; http version not supported
 
   ; decode the url
-  mov        r9, "public"
   mov        r8, [buf]
-  mov        qword [r8], r9
+  mov        qword [r8], "public"
   ; lea        r8, [buf+6] ; dest
   add        r8, 6
   pop        r9 ; length
