@@ -429,10 +429,7 @@ parse_request:
   mov        bh, byte [r10 + rcx - 1]
   sub        bl, '0'
   sub        bh, '0'
-  and        bl, 0xF
-  and        bh, 0xF
-  shl        bl, 4
-  or         bl, bh
+  mov        bl, bl * 16 + bh
   jmp        .loop
 
 .no_hex:

@@ -324,7 +324,6 @@ start:
   Syscall SYS_accept4, r14, NULL, NULL, SOCK_NONBLOCK
   cmp     rax, 0
   jge     @f
-  error   20, "failed to accept connection"
 @@:
 
   push    rax ; fd
