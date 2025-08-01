@@ -8,7 +8,7 @@ Naturally with this being x86 assembly using raw syscalls, it won't work on anyt
 
 ## Overview
 
-Relayouter is a very small (currently ~8 KiB) nginx-like http server that is:
+Relayouter is a very small (currently ~5.4 KiB) nginx-like http server that is:
 - written in x86 assembly without libc (or any linking at all),
 - parallelized across multiple processes bound to each CPU core,
 - utilizing `epoll` for efficient I/O multiplexing,

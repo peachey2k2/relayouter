@@ -17,14 +17,14 @@ elf_header:
 
   e_type          dw 2 ; ET_EXEC
   e_machine       dw 0x3e ; x86-64
-one: ; needed for sys_setsockopt
+eh_latter_half:
   _e_version      dd 1 ; EV_CURRENT
-epollfd:
   e_entry         dq start
   e_phoff         dq program_header - $$
-  ;_e_shoff        dq 0 ; we don't have a section header
-block_sigset dq 0x4002 ; SIGTERM | SIGINT
-  _e_flags        dd 0 ; literally marked as unused
+  ; _e_shoff        dq ? ; we don't have a section header
+  ; _e_flags        dd ? ; literally marked as unused
+  dd ?
+  dq 0x4002
   e_ehsize        dw ELF_HEADER_SIZE
   e_phentsize     dw PROGRAM_HEADER_SIZE
   e_phnum         dw 1
@@ -32,6 +32,17 @@ block_sigset dq 0x4002 ; SIGTERM | SIGINT
   e_shnum         dw 0
   e_shstrndx      dw 0
 ELF_HEADER_SIZE = $ - elf_header
+
+
+virtual at eh_latter_half
+  one        dd 1 ; e_version - needed for sys_setsockopt
+  epollfd    dq ? ; e_entry
+  ev:
+    ev_event dd ? ; e_phoff..
+    ev_data  dq ? ; ..e_phoff, e_shoff..
+  EVENT_SIZE = $ - ev
+  block_sigset dq 0x4002 ; SIGTERM | SIGINT - ..e_shoff, e_flags
+end virtual
 
 program_header:
   p_type          dd 1 ; PT_LOAD
@@ -41,7 +52,7 @@ program_header:
   p_paddr         dq $$
   p_filesz        dq TOTAL_FILE_SIZE
   p_memsz         dq TOTAL_FILE_SIZE
-  _p_align        dq 0x1000 ; ignored for executables
+  p_align         dq 0x1000
 PROGRAM_HEADER_SIZE = $ - program_header
 
 virtual at program_header

@@ -47,7 +47,7 @@ start:
   Syscall    SYS_getrlimit, RLIMIT_STACK, r15
   cmp        rax, 0
   jge        @f
-  error      "couldn't get stack size"
+  error      5, "couldn't get stack size"
 @@:
 
   mov        dword [r15], STACK_SIZE
@@ -56,7 +56,7 @@ start:
   Syscall    SYS_setrlimit, RLIMIT_STACK, r15
   cmp        rax, 0
   jge        @f
-  error      "couldn't set stack size"
+  error      6, "couldn't set stack size"
 @@:
 
   sub        rsp, MAX_EVENTS * 16
@@ -76,7 +76,7 @@ start:
   Syscall    SYS_sched_getaffinity, qword [context.master_pid], CPU_SET_SIZE, r15
   cmp        rax, 0
   jge        @f
-  error      "couldn't retrieve cpu affinity mask"
+  error      7, "couldn't retrieve cpu affinity mask"
 @@:
   xor        r9,  r9
   xor        r12, r12
@@ -89,7 +89,7 @@ start:
 
   print      "Detected "
   print_int  r12
-  print      " CPUs.", 10
+  print      " CPUs", 10
 
   push       r12
 
@@ -100,14 +100,14 @@ start:
 
   cmp     rax, 0
   jge     @f
-  error   "couldn't create socket"
+  error   8, "couldn't create socket"
 @@:
 
   ;; int setsockopt(int sockfd, int level, int optname, const void optval[.optlen], socklen_t optlen);
   Syscall SYS_setsockopt, [ev_data_server.fd], SOL_SOCKET, SO_REUSEADDR, one, 4
   cmp     rax, 0
   jge     @f
-  error   "couldn't set up socket opts"
+  error   9, "couldn't set up socket opts"
 @@:
 
   ; bind it
@@ -116,7 +116,7 @@ start:
   ; `server_addr` won't be used anymore
   cmp     rax, 0
   jge     @f
-  error   "failed to bind socket"
+  error   10, "failed to bind socket"
 @@:
 
   ;; listen for connection
@@ -124,19 +124,20 @@ start:
   Syscall SYS_listen, [ev_data_server.fd], 4096 ; current linux cap. clamped down by system if it's too high anyway
   cmp     rax, 0
   jnl     @f
-  error   "failed to listen socket"
+  error   11, "failed to listen socket"
 @@:
 
-  print   "Socket created, listening...", 10
+  print   "listening...", 10
 
   ; set up signal hooks for exiting
   ;; int sigaction(int signum, const struct sigaction *_Nullable restrict act, struct sigaction *_Nullable restrict oldact);
   ;; NOTE: rt_sigaction also takes the length of `sigset_t`, which should be 8 bytes in x86-64
-  Syscall SYS_rt_sigaction, SIGTERM, sigaction, NULL, SIGSET_LEN
-  Syscall SYS_rt_sigaction, SIGINT,  sigaction, NULL, SIGSET_LEN
-  Syscall SYS_rt_sigaction, SIGHUP,  sigaction, NULL, SIGSET_LEN
-  ; `sigaction` won't be used anymore
-@@:
+  mov     rdi, SIGTERM
+  call    set_sigaction
+  mov     rdi, SIGINT
+  call    set_sigaction
+  mov     rdi, SIGHUP
+  call    set_sigaction
 
   mov     rcx, CPU_SET_CELL_CNT
   pop     rbx ; cpu count
@@ -155,7 +156,7 @@ start:
   Syscall SYS_fork
   cmp     rax, 0
   jge     @f
-  error   "failed to fork process"
+  error   12, "failed to fork process"
 @@:
   test    rax, rax
   jnz     .spawn_loop_cont
@@ -167,14 +168,14 @@ start:
   Syscall SYS_sched_setaffinity, qword [context.master_pid], CPU_SET_SIZE, r15
   cmp     rax, 0
   jge     @f
-  error   "couldn't set cpu affinity mask"
+  error   13, "couldn't set cpu affinity mask"
 @@:
 
   ;; int epoll_create1(int flags);
   Syscall SYS_epoll_create1, 0
   cmp     rax, 0
   jge     @f
-  error   "failed to create the epoll"
+  error   14, "failed to create the epoll"
 @@:
 
 
@@ -189,7 +190,7 @@ start:
   Syscall SYS_epoll_ctl, [epollfd], EPOLL_CTL_ADD, [ev_data_server.fd], ev
   cmp     rax, 0
   jge     @f
-  error   "failed to connect epoll to server socket"
+  error   15, "failed to connect epoll to server socket"
 @@:
 
   ; set up the signal hook (for shutdown)
@@ -198,14 +199,14 @@ start:
   Syscall SYS_rt_sigprocmask, SIG_BLOCK, block_sigset, NULL, SIGSET_LEN ; extra rt arg
   cmp     rax, 0
   jge     @f
-  error   "failed to set blocked signals"
+  error   16, "failed to set blocked signals"
 @@:
 
   ;; int signalfd(int fd, const sigset_t *mask, int flags);
   Syscall SYS_signalfd4, -1, block_sigset, SIGSET_LEN, 0 ; size as per family tradition, but not as the last arg cuz fuck you
   cmp     rax, 0
   jge     @f
-  error   "failed to create signal fd"
+  error   17, "failed to create signal fd"
 @@:
   mov     [ev_data_signal.fd], rax
 
@@ -215,7 +216,7 @@ start:
   Syscall SYS_epoll_ctl, [epollfd], EPOLL_CTL_ADD, [ev_data_signal.fd], ev
   cmp     rax, 0
   jge     @f
-  error   "failed to connect epoll to signal socket"
+  error   18, "failed to connect epoll to signal socket"
 @@:
 
   jmp .worker_loop
@@ -258,7 +259,7 @@ start:
   cmp     rax, 0
   jg      @b ; repeat until all children are done
 
-  print   "main process exited successfully", 10
+  ; print   "main process exited successfully", 10
 
   ; TODO: exit without returning with an interrupt
   exit    0
@@ -271,7 +272,7 @@ start:
   Syscall SYS_epoll_wait, [epollfd], [events], MAX_EVENTS, -1
   cmp     rax, 0
   jge     @f
-  error   "failed to wait for epoll"
+  error   19, "failed to wait for epoll"
 @@:
   mov     r12, rax
   xor     r13, r13
@@ -316,7 +317,7 @@ start:
   cmp     rax, -EAGAIN ; EWOULDBLOCK also aliases to EAGAIN on linux
   je      .switch_end
 
-  error   "failed to accept connection"
+  error   20, "failed to accept connection"
 @@:
 
   push    rax ; fd
@@ -325,7 +326,7 @@ start:
   Syscall SYS_setsockopt, r14, IPPROTO_TCP, TCP_NODELAY, one, 4
   cmp     rax, 0
   jge     @f
-  error   "failed to set `TCP_NODELAY` on a socket"
+  error   21, "failed to set `TCP_NODELAY` on a socket"
 @@:
 
   ; fastopen needs to be enabled in the kernel for this
@@ -335,7 +336,7 @@ start:
 ;   Syscall SYS_setsockopt, r14, IPPROTO_TCP, TCP_FASTOPEN, r15, 4
 ;   cmp     rax, 0
 ;   jge     @f
-;   error   "failed to set `TCP_FASTOPEN` on a socket"
+;   error   22, "failed to set `TCP_FASTOPEN` on a socket"
 ; @@:
 
   ; get a new object and fill it out
@@ -360,7 +361,7 @@ start:
   Syscall SYS_epoll_ctl, [epollfd], EPOLL_CTL_ADD, [client.fd], ev
   cmp     rax, 0
   jge     @f
-  error   "failed to connect epoll to signal socket"
+  error   23, "failed to connect epoll to signal socket"
 @@:
 
 
@@ -545,14 +546,14 @@ start:
   Syscall SYS_close, [epollfd]
   cmp     rax, 0
   jge     @f
-  error   "`close(epollfd)` returned with an error. some data may be lost."
+  error   24, "`close(epollfd)` returned with an error. some data may be lost."
 @@:
 
   Syscall SYS_close, [ev_data_server.fd]
   ; TODO: look into `fsync` for error checking
   cmp     rax, 0
   jge     @f
-  error   "`close(ev_data_server.fd)` returned with an error. some data may be lost."
+  error   25, "`close(ev_data_server.fd)` returned with an error. some data may be lost."
 @@:
   jmp     .worker_exit
 
@@ -561,7 +562,7 @@ start:
   call    free
 
 .worker_exit:
-  print   "a worker has exited", 10
+  ; print   "a worker has exited", 10
   exit 0
 
   
