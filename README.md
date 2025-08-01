@@ -35,5 +35,5 @@ It'll be hosted on http://localhost:8080/ and serve from `./public`
 - [ ] recover from more errors
 - [ ] switch to edge-triggered
 - [ ] redo jumps with consideration for branch predictions
-- [ ] reorganize the files
+- [x] reorganize the files
 - [ ] configuration system

@@ -1,12 +1,12 @@
 fasm = fasm
 
-src = main.asm
+src = src/main.asm
 
 inc = \
-	header.inc \
-	data.inc \
-	glibc_consts.inc \
-	macros.inc \
+	src/header.inc \
+	src/data.inc \
+	src/glibc_consts.inc \
+	src/macros.inc \
 
 out = relayouter
 
@@ -16,7 +16,9 @@ all:
 	$(info use `make [build] [run] [kill] [clean]` to specify.)
 	$(error )
 
-build: $(src) $(inc) Makefile
+build: $(out)
+
+$(out): $(src) $(inc) Makefile
 	$(info --- build ---)
 	$(fasm) $(src) ./$(out)
 	chmod +x ./$(out)
