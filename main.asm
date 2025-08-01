@@ -247,10 +247,6 @@ start:
   ;; int kill(pid_t pid, int sig);
   ; pid: 0 means kill everything in group (in this case, all the children)
   Syscall SYS_kill, 0, SIGTERM
-
-  cmp     rax, 0
-  jge     @f
-  warn    "failed to kill some child processes"
 @@:
 
   ;; pid_t wait4(pid_t pid, int *_Nullable wstatus, int options, struct rusage *_Nullable rusage);

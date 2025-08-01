@@ -115,10 +115,6 @@ macro err_raw text* {
   exit 1
 }
 
-macro warn text* {
-  print "[WARN] " # text
-}
-
 ;; -> r15 - size
 ;; <- r15 - pointer
 alloc:
@@ -428,9 +424,7 @@ parse_request:
   mul        rdx ; rax * 39 -> rdx:rax
   sub        rbx, rax
   and        rbx, 0000111100001111b
-  ;mov        rax, rax
   shl        bh, 4
-  ;or         rbx, rbx
   rol        bx, 4 ; fix the order
   jmp        .loop
 
