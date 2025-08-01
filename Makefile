@@ -3,9 +3,10 @@ fasm = fasm
 src = main.asm
 
 inc = \
-	macros.inc \
+	header.inc \
+	data.inc \
 	glibc_consts.inc \
-	header.inc
+	macros.inc \
 
 out = relayouter
 

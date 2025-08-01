@@ -20,8 +20,9 @@ __print_raw:
   push    rax 
   push    rdi
 
-  mov     rax, 1  ; Syscall: write
-  mov     rdi, 1  ; fd: stdout
+  xor     rax, rax
+  inc     rax       ; Syscall: write
+  mov     rdi, rax  ; fd: stdout
   syscall
 
   pop     rdi
@@ -56,7 +57,9 @@ macro print text*& {
 }
 
 __int_to_str_inner:
-  mov     r14, BUF_SIZE
+  mov     r14, [buf]
+  add     r14, BUF_SIZE
+  push    r14
   mov     r15, 10    ; divisor
 
   ; mov     rax, num   ; divided, lower
@@ -66,15 +69,14 @@ __int_to_str_inner:
 
   add     dl, '0'
   dec     r14
-  mov     rsi, [buf]
-  mov     [rsi + r14], dl
+  mov     [r14], dl
 
   test    rax, rax
   jnz     @b
 
   mov     r15, BUF_SIZE
+  pop     r15
   sub     r15, r14
-  add     r14, [buf]
 
   ret
 
@@ -98,47 +100,19 @@ macro print_int num* {
   pop         r14
 }
 
-macro error text* {
-  local .text, .end, LENGTH
-
+macro error exitcode*, text* {
   neg        rax
   int_to_str rax
-
-  mov        rcx, LENGTH
-  mov        rsi, .text
-  mov        rdi, [buf]
-  rep        movsb
-
-  mov        rcx, r15
-  mov        rsi, r14
-  mov        rdi, [buf]
-  add        rdi, LENGTH
-  rep        movsb
-
-  add        r15, LENGTH
-  mov        rsi, [buf]
-  mov        byte [rsi + r15], 10
+  mov        byte [r14 + r15], 10
   inc        r15
-  printn     [buf], r15
+  printn     r14, r15
 
-  exit 1
-
-  .text:
-    db "[ERROR] " # text # ", code: " 
-  .end:
-  LENGTH = .end - .text
+  exit exitcode
 }
 
 macro err_raw text* {
-  local .text, .end, LENGTH
-
-  printn .text, LENGTH
+  print '0', 10
   exit 1
-
-  .text:
-    db "[ERROR] " # text, 10
-  .end:
-  LENGTH = .end - .text
 }
 
 macro warn text* {
@@ -155,7 +129,7 @@ alloc:
   Syscall SYS_mmap, NULL, r15, 3, 33, -1, 0
   cmp     rax, 0
   jge     @f
-  error   "Allocation failed"
+  error   3, "Allocation failed"
 @@:
   mov     r15, rax
   ret
@@ -166,7 +140,7 @@ free:
   Syscall SYS_munmap, r15, r14
   cmp     rax, 0
   jge     @f
-  error   "Failed to free"
+  error   4, "Failed to free"
 @@:
   ret
 
@@ -622,3 +596,12 @@ set_mime_type:
 .end:
 
 
+;; rdi -> signal
+set_sigaction:
+  ;; int sigaction(int signum, const struct sigaction *_Nullable restrict act, struct sigaction *_Nullable restrict oldact);
+  mov     rax, SYS_rt_sigaction
+  mov     esi, sigaction   ; arg2
+  xor     rdx, rdx         ; arg3
+  mov     r10, SIGSET_LEN  ; arg4
+  syscall
+  ret

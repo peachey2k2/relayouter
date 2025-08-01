@@ -92,7 +92,7 @@ INIT_ARENA_SIZE = LOC_ARENA_END
 ; don't have fragmentation issues nor alloc/dealloc overhead
 
 ; 48 bytes of reusable space
-; we could also use the elf header probably
+; actually using the elf header is enough for now
 virtual at old_reusable
 
 end virtual
@@ -100,11 +100,6 @@ end virtual
 CPU_SET_CELL_CNT = 16
 ; cpu_set dq CPU_SET_CELL_CNT dup 0 ; unneeded anymore
 CPU_SET_SIZE = CPU_SET_CELL_CNT*8
-
-ev:
-  ev_event dd 0
-  ev_data  dq 0
-EVENT_SIZE = $ - ev
 
 struc Event type {
   .fd     rq 1
