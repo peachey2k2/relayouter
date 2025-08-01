@@ -249,11 +249,24 @@ start:
   Syscall SYS_kill, 0, SIGTERM
 @@:
 
+  print   "exiting", 10
+@@:
   ;; pid_t wait4(pid_t pid, int *_Nullable wstatus, int options, struct rusage *_Nullable rusage);
   ; pid: -1 means wait for any child
-  Syscall SYS_wait4, -1, NULL, 0, NULL
+  mov     rbx, [buf]
+  Syscall SYS_wait4, -1, rbx, 0, NULL
+  ; mov     r15, rax
+  ; mov     rbx, qword [rbx]
+  ; and     rbx, 0x7f
+  ; print_int_and_newline rbx
+  ; cmp     r15, 0
   cmp     rax, 0
+  
   jg      @b ; repeat until all children are done
+
+  mov     r15, [arena]
+  mov     r14, [arena_size]
+  call    free
 
   ; print   "main process exited successfully", 10
 
@@ -274,14 +287,17 @@ start:
   xor     r13, r13
 
 .event_for_loop:
-  mov     rsi, r13         ; idx
-  sal     rsi, 4 ; *16     ; * sizeof(event)
+  mov     rsi, r13 ; x     ; idx
+  shl     rsi, 1 ; *2
+  add     rsi, r13 ; +x
+  shl     rsi, 2 ; *4   ; (2x + x) * 4
+  ; sal     rsi, 4 ; *16     ; * sizeof(event)
   add     rsi, [events]    ; + events (ptr)
 
   push    r13
   push    r12
 
-  mov     rax, [rsi]
+  mov     eax, [rsi]
   mov     [ev_event], eax
   mov     rax, [rsi + 4] ; HAHAHAHAHAHAHHAHAHAHHAHAHHAHAHAH
   mov     [ev_data], rax
@@ -553,9 +569,6 @@ start:
 @@:
   jmp     .worker_exit
 
-
-  mov     r14, [arena_size]
-  call    free
 
 .worker_exit:
   ; print   "a worker has exited", 10

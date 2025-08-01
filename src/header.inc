@@ -1,7 +1,6 @@
 ; Linux ELF parsing is the most insane nonsensical thing ever.
 ; Basically all fields I prefixed with underscore are all ignored.
-; So in the future we could use parts of this to lower the file
-; size even further.
+; So we can use parts of this to lower the file size even further.
 
 use64
 org     0x000400000

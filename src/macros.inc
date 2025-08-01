@@ -100,6 +100,19 @@ macro print_int num* {
   pop         r14
 }
 
+macro print_int_and_newline num* {
+  push        r14
+  push        r15
+
+  int_to_str  num
+  mov         byte [r14 + r15], 10
+  inc         r15
+  printn      r14, r15
+
+  pop         r15
+  pop         r14
+}
+
 macro error exitcode*, text* {
   neg        rax
   int_to_str rax
@@ -151,19 +164,19 @@ acquire_client_obj:
   cmp        [context.pool_head], r14
   jne        @f
   pop        r14
-  err_raw    "a client pool was fully emptied"
+  err_raw    "client pool was fully emptied"
 @@:
 
   mov        r14, 1
   lock xadd  [context.pool_head], r14   ; get idx and increment
   and        r14, 111111111111b         ; clamp
-  sal        r14, 2 ; *4
-  add        r14, [client_pool]  
+  shl        r14, 2 ; *4
+  add        r14, [client_pool]
 
   xor        r15, r15
   mov        r15d, [r14] ; get index
 
-  sal        r15, 12 ; *4096
+  shl        r15, 12 ; *4096
   add        r15, [clients]
 
   pop        r14

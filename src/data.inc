@@ -86,7 +86,6 @@ LOC_CLIENTS      = LOC_CLIENT_POOL  + INIT_POOL_SIZE * 4           ; word[INIT_P
 LOC_ARENA_END    = LOC_CLIENTS      + INIT_POOL_SIZE * CLIENT_SIZE ; client_obj[INIT_POOL_SIZE]
 
 INIT_ARENA_SIZE = LOC_ARENA_END
-
 ; basically we store the indexes of each client object in a
 ; ring buffer at `LOC_CLIENTS` and use it as a stack so we
 ; don't have fragmentation issues nor alloc/dealloc overhead
