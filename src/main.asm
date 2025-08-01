@@ -324,11 +324,6 @@ start:
   Syscall SYS_accept4, r14, NULL, NULL, SOCK_NONBLOCK
   cmp     rax, 0
   jge     @f
-
-  ; this just means another thread already handled this
-  cmp     rax, -EAGAIN ; EWOULDBLOCK also aliases to EAGAIN on linux
-  je      .switch_end
-
   error   20, "failed to accept connection"
 @@:
 
